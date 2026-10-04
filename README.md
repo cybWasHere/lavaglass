@@ -32,6 +32,13 @@ One installer. No root, everything in your home folder, every part optional.
 - **Glass Dock**: time, date, weather and now playing in a glass pill at the top of a screen, with
   a little equaliser. Hover for seconds, a calendar and the week's forecast; click the track to
   play or pause. Weather is from [Open-Meteo](https://open-meteo.com), free and without a key.
+
+  <img src="screenshots/pear-remote.png" width="420" alt="Glass Dock with Pear Remote open under it: the track, its controls and the queue in a glass card">
+
+  On the desktop this was built for, pointing at the track also drops down
+  [Pear Remote](https://github.com/cybWasHere/obs-pear-remote), the full remote for Pear Desktop,
+  as a glass card: queue, search, likes, volume. The remote is its own project, and the card that
+  hosts it is not in this installer yet.
 - **Glass windows**: Konsole, Halloy, Chatterino and OBS at 80% over blur, title bars included.
   Firefox's toolbar and tabs too, if you opt in; pages stay opaque.
 - **Rounded corners on every window**, with no borders, so the content itself is rounded and not
