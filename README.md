@@ -11,6 +11,10 @@ One installer. No root, everything in your home folder, every part optional.
 [![No root](https://img.shields.io/badge/install-no%20root%2C%20backs%20up%20first-f6b6c9)](#quick-start)
 [![MIT](https://img.shields.io/badge/license-MIT-3da639)](LICENSE)
 
+<img src="screenshots/desktop.png" alt="lavaglass: two glass Konsole windows with rounded corners over the lava lamp wallpaper, coloured by the album cover of the song playing">
+
+<img src="screenshots/glass-dock.png" width="480" alt="Glass Dock: time, date, weather, the track playing and its equaliser">
+
 </div>
 
 > Vibecoded, and built for one desktop first. [The fine print.](#the-fine-print)
