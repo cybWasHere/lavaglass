@@ -1,0 +1,14 @@
+/* Chrome (toolbar, tabs, sidebar) at 80% over KWin blur; the page area stays opaque.
+   The tint is painted once, on #navigator-toolbox and #browser; everything else in the
+   chrome stays transparent so alphas don't stack. Needs "firefox" in the Better Blur DX
+   window class list for the blur. Change --glass-tint to suit your Firefox theme. */
+:root, :root[lwtheme] {
+  --glass-tint: rgba(32, 35, 38, 0.8);
+  --lwt-accent-color: transparent !important;
+  --lwt-accent-color-inactive: transparent !important;
+  --toolbar-background-color: transparent !important;
+  --toolbar-bgcolor: transparent !important;
+  --sidebar-background-color: transparent !important;
+}
+#main-window, body { background-color: transparent !important; }
+#navigator-toolbox, #browser { background-color: var(--glass-tint) !important; }

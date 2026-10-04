@@ -1,0 +1,13 @@
+{
+    "KPackageStructure": "Plasma/Wallpaper",
+    "KPlugin": {
+        "Authors": [ { "Name": "cyb" } ],
+        "Description": "Slow dark lava-lamp blobs, made to peek between windows",
+        "Icon": "preferences-desktop-wallpaper",
+        "Id": "org.cyb.lavalamp",
+        "License": "MIT",
+        "Name": "Lava Lamp",
+        "Version": "1.0"
+    },
+    "X-KDE-ParentApp": "org.kde.plasmashell"
+}

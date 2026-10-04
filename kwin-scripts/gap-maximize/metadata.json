@@ -1,0 +1,13 @@
+{
+    "KPlugin": {
+        "Id": "gap-maximize",
+        "Name": "Gap Maximize",
+        "Description": "On the landscape screen, maximize puts the window into the padded full-screen custom tile instead",
+        "Authors": [{ "Name": "cyb" }],
+        "License": "MIT",
+        "Version": "1.0"
+    },
+    "X-Plasma-API": "javascript",
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "KPackageStructure": "KWin/Script"
+}

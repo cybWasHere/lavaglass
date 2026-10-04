@@ -1,0 +1,13 @@
+{
+    "KPlugin": {
+        "Id": "panel-edge-reveal",
+        "Name": "Panel Edge Reveal",
+        "Description": "Touching the bottom screen edge anywhere reveals a short dodge-windows panel, not just under the panel itself",
+        "Authors": [{ "Name": "cyb" }],
+        "License": "MIT",
+        "Version": "1.0"
+    },
+    "X-Plasma-API": "javascript",
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "KPackageStructure": "KWin/Script"
+}

@@ -1,0 +1,6 @@
+/* See-through new tab: with browser.tabs.allow_transparent_browser, a page that paints no
+   background shows --tabpanel-background-color. Clear it for the new tab page only (matched
+   by its tab title), so a start page without a background shows the glass. */
+body:has(.tabbrowser-tab[selected][label="New Tab"]) #tabbrowser-tabpanels {
+  --tabpanel-background-color: transparent !important;
+}

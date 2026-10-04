@@ -1,0 +1,12 @@
+[Unit]
+Description=Glass Dock (time, weather and now playing, in a glass pill at the top of a screen)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/share/lavaglass/glass-dock/build/glass-dock %h/.local/share/lavaglass/glass-dock
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=graphical-session.target
