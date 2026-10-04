@@ -65,14 +65,15 @@ Window {
     LayerShell.Window.keyboardInteractivity: LayerShell.Window.KeyboardInteractivityNone
 
     function reshape() {
-        const rects = [Qt.rect(pill.x, pill.y, pillW, pillHeight)];
+        // the blur stops a pixel inside the glass too, for the same reason
+        const rects = [Qt.rect(pill.x + 1, pill.y + 1, pillW - 2, pillHeight - 2)];
         let bridge = Qt.rect(0, 0, 0, 0);
         if (open) {
-            rects.push(Qt.rect(panel.x, panel.y, panel.width, panel.height));
+            rects.push(Qt.rect(panel.x + 1, panel.y + 1, panel.width - 2, panel.height - 2));
             const l = Math.max(pill.x, panel.x), r = Math.min(pill.x + pillW, panel.x + panel.width);
             bridge = Qt.rect(l, pill.y + pillHeight, r - l, panelGap);
         }
-        Glass.shape(win, rects, 10, bridge);
+        Glass.shape(win, rects, 9, bridge);
     }
     onWidthChanged: Qt.callLater(reshape)
     onHeightChanged: Qt.callLater(reshape)
@@ -220,7 +221,8 @@ Window {
         Item {
             id: hole
             anchors.fill: parent; visible: false; layer.enabled: true
-            Rectangle { x: shade.reach; y: shade.reach; width: shade.of.width; height: shade.of.height; radius: 10 }
+            // a pixel inside the glass edge: cut flush, the two soft edges leave a light rim between them
+            Rectangle { x: shade.reach + 1; y: shade.reach + 1; width: shade.of.width - 2; height: shade.of.height - 2; radius: 9 }
         }
         MultiEffect { anchors.fill: parent; source: cast; maskEnabled: true; maskSource: hole; maskInverted: true }
     }
