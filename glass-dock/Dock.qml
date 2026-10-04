@@ -18,6 +18,7 @@ Window {
     readonly property int gap: 10          // above the pill, and between it and the windows below
     readonly property int tilePadding: 20  // KWin's own gap around tiles on this screen (kwinrc [Tiling] padding)
     readonly property int panelGap: 6      // between the pill and an open panel
+    readonly property int pad: 28          // room around the glass, inside the surface, for its shadow
     readonly property color text: "#fcfcfc"
     readonly property color muted: "#a1a9b1"
     readonly property color dim: "#6c737a"
@@ -48,8 +49,8 @@ Window {
     readonly property real overhang: Math.max(spill(dateSec, calBody.implicitWidth + 28),
                                               wxSec.visible ? spill(wxSec, weekBody.implicitWidth + 28) : 0)
 
-    width: pillW + 2 * overhang
-    height: pillHeight + (open ? panelGap + panel.height : 0)
+    width: pillW + 2 * (overhang + pad)
+    height: gap + pillHeight + (open ? panelGap + panel.height : 0) + pad
     color: "transparent"
     flags: Qt.FramelessWindowHint
     visible: true
@@ -58,18 +59,18 @@ Window {
     LayerShell.Window.scope: "glass-dock"
     LayerShell.Window.layer: LayerShell.Window.LayerTop
     LayerShell.Window.anchors: LayerShell.Window.AnchorTop
-    LayerShell.Window.margins.top: gap
-    // KWin adds the margin to the zone and its tile padding below it
-    LayerShell.Window.exclusionZone: Math.max(0, pillHeight + gap - tilePadding)
+    // The gap above the pill is inside the surface (the shadow needs the room), and the surface
+    // hangs lower than its zone for the same reason. KWin adds its tile padding below the zone.
+    LayerShell.Window.exclusionZone: Math.max(0, pillHeight + 2 * gap - tilePadding)
     LayerShell.Window.keyboardInteractivity: LayerShell.Window.KeyboardInteractivityNone
 
     function reshape() {
-        const rects = [Qt.rect(pill.x, 0, pillW, pillHeight)];
+        const rects = [Qt.rect(pill.x, pill.y, pillW, pillHeight)];
         let bridge = Qt.rect(0, 0, 0, 0);
         if (open) {
             rects.push(Qt.rect(panel.x, panel.y, panel.width, panel.height));
             const l = Math.max(pill.x, panel.x), r = Math.min(pill.x + pillW, panel.x + panel.width);
-            bridge = Qt.rect(l, pillHeight, r - l, panelGap);
+            bridge = Qt.rect(l, pill.y + pillHeight, r - l, panelGap);
         }
         Glass.shape(win, rects, 10, bridge);
     }
@@ -198,11 +199,39 @@ Window {
         MultiEffect { anchors.fill: parent; source: img; maskEnabled: true; maskSource: mask }
     }
 
+    // The soft drop shadow windows get from their decoration, for a piece of glass. It is cut out
+    // under the glass itself: seen through it, the shadow would only darken the blur.
+    component Shade: Item {
+        id: shade
+        required property Item of
+        readonly property int reach: win.pad
+        x: of.x - reach; y: of.y - reach
+        width: of.width + 2 * reach; height: of.height + 2 * reach
+        visible: of.visible
+        Item {
+            id: cast
+            anchors.fill: parent; visible: false; layer.enabled: true
+            RectangularShadow {
+                x: shade.reach; y: shade.reach + 4
+                width: shade.of.width; height: shade.of.height
+                radius: 10; blur: 22; color: Qt.rgba(0, 0, 0, 0.6)
+            }
+        }
+        Item {
+            id: hole
+            anchors.fill: parent; visible: false; layer.enabled: true
+            Rectangle { x: shade.reach; y: shade.reach; width: shade.of.width; height: shade.of.height; radius: 10 }
+        }
+        MultiEffect { anchors.fill: parent; source: cast; maskEnabled: true; maskSource: hole; maskInverted: true }
+    }
+    Shade { of: pill }
+    Shade { of: panel }
+
     Item {
         id: pill
-        x: win.overhang
+        x: win.pad + win.overhang; y: win.gap
         width: win.pillW; height: win.pillHeight
-        Rectangle { anchors.fill: parent; radius: 10; color: win.glass; border { width: 1; color: Qt.rgba(1, 1, 1, 0.07) } }
+        Rectangle { anchors.fill: parent; radius: 10; color: win.glass }
 
         Row {
             id: row
@@ -302,13 +331,13 @@ Window {
         // both panels are loaded from the start, so the window knows how wide either will be
         readonly property Item body: win.open === "date" ? calBody : win.open === "wx" ? weekBody : null
         visible: body !== null
-        x: win.overhang + win.panelX
-        y: win.pillHeight + win.panelGap
+        x: win.pad + win.overhang + win.panelX
+        y: win.gap + win.pillHeight + win.panelGap
         width: body ? body.implicitWidth + 28 : 0
         height: body ? body.implicitHeight + 26 : 0
         onXChanged: Qt.callLater(win.reshape)
         onWidthChanged: Qt.callLater(win.reshape)
-        radius: 10; color: win.glass; border { width: 1; color: Qt.rgba(1, 1, 1, 0.07) }
+        radius: 10; color: win.glass
         HoverHandler { onHoveredChanged: hovered ? closeTimer.stop() : closeTimer.restart() }
         Loader { id: calBody; anchors.centerIn: parent; visible: win.open === "date"; sourceComponent: calendar }
         Loader { id: weekBody; anchors.centerIn: parent; visible: win.open === "wx"; active: win.weather !== null; sourceComponent: week }

@@ -11,7 +11,7 @@ One installer. No root, everything in your home folder, every part optional.
 [![No root](https://img.shields.io/badge/install-no%20root%2C%20backs%20up%20first-f6b6c9)](#quick-start)
 [![MIT](https://img.shields.io/badge/license-MIT-3da639)](LICENSE)
 
-<img src="screenshots/desktop.png" alt="lavaglass: two glass Konsole windows with rounded corners over the lava lamp wallpaper, coloured by the album cover of the song playing">
+<img src="screenshots/desktop.png" alt="lavaglass: Konsole and Halloy as glass windows with rounded corners over the lava lamp wallpaper, coloured by the album cover of the song playing">
 
 <img src="screenshots/glass-dock.png" width="480" alt="Glass Dock: time, date, weather, the track playing and its equaliser">
 
@@ -49,8 +49,10 @@ cd lavaglass
 ./install.sh
 ```
 
-That installs the default set. It tells you at the end what it skipped and what is left for you
-to click. Then:
+<img src="screenshots/installer.png" width="640" alt="The installer: a checklist of the parts it installed, then a numbered list of what is left for you">
+
+That installs the default set, ticks off each part as it goes, and ends with what is left for you
+to click:
 
 1. **Pick the wallpaper.** Right-click the desktop, *Desktop and Wallpaper*, wallpaper type
    *Lava Lamp*.

@@ -32,11 +32,75 @@ PREFIX=$DATA/lavaglass
 BACKUPS=$PREFIX/backups/$(date +%Y-%m-%d-%H%M%S)
 DEFAULT=(wallpaper lamp-audio dock kwin-scripts corners glass themes)
 OPTIN=(round-tasks firefox see-through)
-LINK=0 START=1 PARTS=() NOTES=() KWIN_DIRTY=0 BLUR_DIRTY=0
+LINK=0 START=1 PARTS=() TODO=() EXTRAS=() SKIPPED=0 KWIN_DIRTY=0 BLUR_DIRTY=0
 
-say()  { printf '\033[1m%s\033[0m\n' "$*"; }
-note() { NOTES+=("$*"); }
-have() { command -v "$1" >/dev/null 2>&1; }
+# Colours and the spinner only on a real terminal; NO_COLOR or a pipe gets plain lines.
+# The Ferra pink and coral where the terminal has true colour, plain magenta and yellow elsewhere.
+if [[ -t 1 && -t 2 && -z ${NO_COLOR:-} && ${TERM:-dumb} != dumb ]]; then
+    FANCY=1
+    BOLD=$'\e[1m' DIM=$'\e[2m' RESET=$'\e[0m' GREEN=$'\e[32m' YELLOW=$'\e[33m' RED=$'\e[31m'
+    case ${COLORTERM:-} in
+        truecolor|24bit) PINK=$'\e[38;2;246;182;201m' CORAL=$'\e[38;2;255;160;122m' ;;
+        *) PINK=$'\e[35m' CORAL=$'\e[33m' ;;
+    esac
+else
+    FANCY=0 BOLD="" DIM="" RESET="" GREEN="" YELLOW="" RED="" PINK="" CORAL=""
+fi
+case ${LC_ALL:-${LC_CTYPE:-${LANG:-}}} in
+    *[Uu][Tt][Ff]-8*|*[Uu][Tt][Ff]8*) OK_MARK=✓ BAD_MARK=✗ DOT=● SPIN=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏) ;;
+    *) OK_MARK=+ BAD_MARK=x DOT='*' SPIN=('|' / - "\\") ;;
+esac
+
+die()   { printf '%s%s Error:%s %s\n' "$RED" "$BAD_MARK" "$RESET" "$*" >&2; exit 1; }
+tilde() { printf '%s' "${1/#"$HOME"/\~}"; }
+have()  { command -v "$1" >/dev/null 2>&1; }
+
+banner() { printf '\n  %s%s%s %s%slavaglass%s  %sKDE Plasma 6 %s%s\n\n' "$CORAL" "$DOT" "$RESET" "$BOLD" "$PINK" "$RESET" "$DIM" "$1" "$RESET"; }
+
+# One line of the checklist: row ok|todo|skip|fail LABEL [DETAIL]
+row() {
+    local mark colour
+    case $1 in
+        ok)   mark=$OK_MARK colour=$GREEN ;;
+        todo) mark='!' colour=$YELLOW ;;
+        fail) mark=$BAD_MARK colour=$RED; SKIPPED=$((SKIPPED + 1)) ;;
+        *)    mark='-' colour=$DIM; SKIPPED=$((SKIPPED + 1)) ;;
+    esac
+    printf '  %s%s%s %-18s %s%s%s\n' "$colour" "$mark" "$RESET" "$2" "$DIM" "${3:-}" "$RESET"
+}
+
+# Something left for the person to do, listed at the end: todo TITLE [DETAIL]
+todo() { TODO+=("$1"$'\t'"${2:-}"); }
+# A missing extra (Klassy, ...): named once at the end, with where to get it
+extra() { local e; for e in "${EXTRAS[@]}"; do [[ $e == "$1" ]] && return 0; done; EXTRAS+=("$1"); }
+
+# Run a slow, quiet command behind a spinner with elapsed time; its output is shown only if
+# it fails. The caller prints the row. Without a terminal it just runs.
+run_step() {
+    local label=$1 log pid rc=0 i=0 start=$SECONDS
+    shift
+    log=$(mktemp)
+    if ((!FANCY)); then
+        "$@" >"$log" 2>&1 </dev/null || rc=$?
+    else
+        "$@" >"$log" 2>&1 </dev/null &
+        pid=$!
+        # shellcheck disable=SC2064  # expand pid and log now
+        trap "kill $pid 2>/dev/null; printf '\r\e[K\e[?25h  Interrupted.\n' >&2; rm -f '$log'; exit 130" INT TERM
+        printf '\e[?25l'
+        while kill -0 "$pid" 2>/dev/null; do
+            printf '\r  %s%s%s %s %s%ds%s' "$CORAL" "${SPIN[i++ % ${#SPIN[@]}]}" "$RESET" "$label" "$DIM" $((SECONDS - start)) "$RESET"
+            sleep 0.1
+        done
+        wait "$pid" || rc=$?
+        trap - INT TERM
+        printf '\r\e[K\e[?25h'
+    fi
+    ((rc)) && sed 's/^/    /' "$log" >&2
+    rm -f "$log"
+    STEP_SECONDS=$((SECONDS - start))
+    return "$rc"
+}
 kread()  { kreadconfig6 --file "$1" --group "$2" --key "$3"; }
 kwrite() { kwriteconfig6 --file "$1" --group "$2" --key "$3" "$4"; }
 
@@ -52,7 +116,7 @@ backup() { # copy a config file aside, before this run's first edit of it
 
 put() { # put <source> <target>: copy, or symlink with --link; replaces what was there
     local src=$1 dst=$2
-    [[ $dst == "$DATA"/* || $dst == "$CONF"/* ]] || { echo "refusing to write $dst" >&2; exit 1; }
+    [[ $dst == "$DATA"/* || $dst == "$CONF"/* ]] || die "refusing to write $dst"
     mkdir -p "$(dirname "$dst")"
     if [[ -L $dst || -f $dst ]]; then rm -f "$dst"; elif [[ -d $dst ]]; then rm -rf "$dst"; fi
     if ((LINK)); then ln -s "$src" "$dst"; else cp -r "$src" "$dst"; fi
@@ -131,7 +195,8 @@ has_effect() { plugin "kwin/effects/plugins/$1.so"; }
 
 do_wallpaper() {
     put "$HERE/wallpaper" "$DATA/plasma/wallpapers/org.cyb.lavalamp"
-    note "Wallpaper: right-click the desktop > Desktop and Wallpaper > Wallpaper type: Lava Lamp."
+    row ok "Lava Lamp" "wallpaper"
+    todo "Pick the wallpaper" "right-click the desktop > Desktop and Wallpaper > Wallpaper type: Lava Lamp"
 }
 
 do_lamp-audio() {
@@ -140,18 +205,23 @@ do_lamp-audio() {
     python3 -c 'from gi.repository import Gio' 2>/dev/null || missing+=(python-gobject)
     have pw-record && have pw-link || missing+=(pipewire)
     if ((${#missing[@]})); then
-        note "lamp-audio skipped, it needs: ${missing[*]}. The lamp still drifts without it."
+        row skip "lamp-audio" "needs ${missing[*]}; the lamp still drifts without it"
         return 0
     fi
     put "$HERE/lamp-audio" "$PREFIX/lamp-audio"
     unit "$HERE/lamp-audio/lamp-audio.service"
+    row ok "lamp-audio" "the lamp follows whatever music is playing"
+}
+
+build_dock() {
+    cmake -S "$HERE/glass-dock" -B "$HERE/glass-dock/build" -DCMAKE_BUILD_TYPE=Release &&
+    cmake --build "$HERE/glass-dock/build"
 }
 
 do_dock() {
-    if ! have cmake; then note "Glass Dock skipped, it needs cmake and a C++ compiler to build."; return 0; fi
-    if ! { cmake -S "$HERE/glass-dock" -B "$HERE/glass-dock/build" -DCMAKE_BUILD_TYPE=Release >/dev/null &&
-           cmake --build "$HERE/glass-dock/build" >/dev/null; }; then
-        note "Glass Dock skipped, the build failed. It needs Qt 6 (declarative), KWindowSystem and layer-shell-qt, with headers."
+    if ! have cmake; then row skip "Glass Dock" "needs cmake and a C++ compiler to build"; return 0; fi
+    if ! run_step "Building Glass Dock" build_dock; then
+        row fail "Glass Dock" "build failed: it needs Qt 6, KWindowSystem and layer-shell-qt, with headers"
         return 0
     fi
     if ((LINK)); then
@@ -163,9 +233,10 @@ do_dock() {
     fi
     if [[ ! -e $CONF/lavaglass/glass-dock.json ]]; then
         install -Dm644 "$HERE/glass-dock/config.example.json" "$CONF/lavaglass/glass-dock.json"
-        note "Glass Dock: set your place (lat, lon) and screen in $CONF/lavaglass/glass-dock.json, then: systemctl --user restart glass-dock"
+        todo "Tell the dock where you live" "lat, lon and screen in $(tilde "$CONF/lavaglass/glass-dock.json"), then: systemctl --user restart glass-dock"
     fi
     unit "$HERE/glass-dock/glass-dock.service"
+    row ok "Glass Dock" "built$( ((STEP_SECONDS > 1)) && echo " in ${STEP_SECONDS}s")"
 }
 
 do_kwin-scripts() {
@@ -177,10 +248,12 @@ do_kwin-scripts() {
         kwrite kwinrc Plugins "${id}Enabled" true
     done
     KWIN_DIRTY=1
-    note "Gap Maximize uses the tile gap: Meta+T on a landscape screen, one full-screen tile, set its padding."
+    row ok "KWin scripts" "Gap Maximize, Panel Edge Reveal"
+    todo "Set the gap for Gap Maximize" "Meta+T on the landscape screen, keep one full-screen tile, give it padding"
 }
 
 do_corners() {
+    local lacks=()
     backup "$CONF/kwinrc"
     if has_klassy; then
         backup "$CONF/klassy/klassyrc"
@@ -190,7 +263,7 @@ do_corners() {
         kwrite kwinrc org.kde.kdecoration2 BorderSizeAuto false
         kwrite klassy/klassyrc Windeco WindowCornerRadius 10
     else
-        note "Klassy is not installed: window decoration left as it is. https://github.com/paulmcauley/klassy"
+        lacks+=("decoration left as it is (no Klassy)"); extra Klassy
     fi
     if has_effect kwin4_effect_shapecorners; then
         local k
@@ -201,12 +274,18 @@ do_corners() {
             kwrite kwinrc Round-Corners "$k" 0
         done
     else
-        note "KDE Rounded Corners is not installed: only title bars are rounded. https://github.com/matinlotfali/KDE-Rounded-Corners"
+        lacks+=("window content stays square (no KDE Rounded Corners)"); extra "KDE Rounded Corners"
     fi
     KWIN_DIRTY=1
+    if ((${#lacks[@]})); then
+        local d; printf -v d '%s; ' "${lacks[@]}"; row todo "Rounded corners" "${d%; }"
+    else
+        row ok "Rounded corners" "Klassy, no borders, 10 px on every window"
+    fi
 }
 
 do_glass() {
+    local lacks=()
     backup "$CONF/kwinrc"; backup "$CONF/kwinrulesrc"; backup "$CONF/konsolerc"
     if has_effect better_blur_dx; then
         kwrite kwinrc Plugins blurEnabled false
@@ -214,7 +293,7 @@ do_glass() {
         kwrite kwinrc Effect-better-blur-dx BlurMatching true
         blur_class org.squidowl.halloy com.chatterino.chatterino chatterino obs
     else
-        note "Better Blur DX is not installed: Halloy, Chatterino and OBS will be see-through but not blurred. https://github.com/xarblu/kwin-effects-better-blur-dx"
+        lacks+=("see-through but not blurred (no Better Blur DX)"); extra "Better Blur DX"
     fi
     if has_klassy; then
         local presets=$CONF/klassy/windecopresetsrc
@@ -225,10 +304,15 @@ do_glass() {
         klassy_exception halloy ''
         kwrite konsolerc KDE widgetStyle klassy
     else
-        note "Klassy is not installed: title bars stay opaque."
+        lacks+=("title bars stay opaque (no Klassy)"); extra Klassy
     fi
     opacity_rule lavaglass-chatterino chatterino "lavaglass: Chatterino at 80% (glass)"
     opacity_rule lavaglass-obs obs "lavaglass: OBS at 80% (glass)"
+    if ((${#lacks[@]})); then
+        local d; printf -v d '%s; ' "${lacks[@]}"; row todo "Glass windows" "${d%; }"
+    else
+        row ok "Glass windows" "Konsole, Halloy, Chatterino and OBS at 80% over blur"
+    fi
 }
 
 do_themes() {
@@ -240,7 +324,7 @@ do_themes() {
         backup "$CONF/konsolerc"
         kwrite konsolerc 'Desktop Entry' DefaultProfile Lavaglass.profile
     else
-        note "Konsole: pick the colour scheme 'Ferra Glass' in your profile (Settings > Edit Current Profile > Appearance)."
+        todo "Konsole: pick the colour scheme Ferra Glass" "Settings > Edit Current Profile > Appearance"
     fi
 
     put "$HERE/themes/halloy/ferra-glass.toml" "$CONF/halloy/themes/ferra-glass.toml"
@@ -250,7 +334,7 @@ do_themes() {
             backup "$hc"
             sed -i '1i theme = "ferra-glass"' "$(readlink -f "$hc")"
         elif ! grep -qE '^theme[[:space:]]*=[[:space:]]*"ferra-glass"' "$hc"; then
-            note "Halloy: set  theme = \"ferra-glass\"  in $hc"
+            todo "Halloy: switch the theme" "set  theme = \"ferra-glass\"  in $(tilde "$hc")"
         fi
     fi
 
@@ -261,22 +345,23 @@ do_themes() {
         cp "$HERE/themes/chatterino/Ferra.json" "$dir/Themes/Ferra.json"
         found=1
     done
-    ((found)) && note "Chatterino: pick the theme 'Ferra' in Settings > General > Theme."
-    return 0
+    ((found)) && todo "Chatterino: pick the theme Ferra" "Settings > General > Theme"
+    row ok "Ferra themes" "Konsole, Halloy, Chatterino"
 }
 
 do_round-tasks() {
     local theme
     theme=$(kread plasmarc Theme name); theme=${theme:-default}
     if [[ ! -e /usr/share/plasma/desktoptheme/$theme && ! -e $DATA/plasma/desktoptheme/$theme/metadata.json ]]; then
-        note "round-tasks skipped: Plasma style '$theme' not found."
+        row skip "Round tasks" "Plasma style '$theme' not found"
         return 0
     fi
-    if ! python3 "$HERE/tools/rounded-tasks-svg.py" 7 4 "$theme" >/dev/null; then
-        note "round-tasks failed, see the error above; the rest went on."
+    if ! run_step "Drawing round task highlights" python3 "$HERE/tools/rounded-tasks-svg.py" 7 4 "$theme"; then
+        row fail "Round tasks" "see the error above; the rest went on"
         return 0
     fi
-    note "Round task highlights: restart Plasma to see them (systemctl --user restart plasma-plasmashell)."
+    row ok "Round tasks" "for the Plasma style '$theme'"
+    todo "Restart Plasma to see the round task highlights" "systemctl --user restart plasma-plasmashell"
 }
 
 ff_profiles() { # the profile each Firefox install starts with, else the default one
@@ -310,15 +395,16 @@ ff_pref() { # ff_pref <profile> <pref>: set it to true in user.js
 }
 
 do_firefox() {
-    local p n=0
+    local p n=0 done=0
     while IFS= read -r p; do
         [[ -d $p ]] || continue
         n=$((n + 1))
         if grep -q -- '--glass-tint' "$p/chrome/userChrome.css" 2>/dev/null &&
            ! grep -qF '/* lavaglass:glass begin */' "$p/chrome/userChrome.css"; then
-            note "Firefox: $p already has its own glass block in userChrome.css, left alone."
+            row skip "Firefox glass" "$(basename "$p") already has its own glass block, left alone"
             continue
         fi
+        done=$((done + 1))
         ff_block "$p" glass
         ff_pref "$p" toolkit.legacyUserProfileCustomizations.stylesheets
         if [[ ${1:-} == see-through ]]; then
@@ -326,11 +412,16 @@ do_firefox() {
             ff_pref "$p" browser.tabs.allow_transparent_browser
         fi
     done < <(ff_profiles)
-    if ((n == 0)); then note "Firefox: no profile found, nothing done."; return 0; fi
+    if ((n == 0)); then row skip "Firefox glass" "no Firefox profile found"; return 0; fi
     backup "$CONF/kwinrc"
-    has_effect better_blur_dx && blur_class firefox
-    note "Firefox: restart it. Its glass tint matches Breeze Dark; change --glass-tint in userChrome.css for another theme."
-    [[ ${1:-} == see-through ]] && note "See-through: pages with no background of their own are now drawn on the dark tab backdrop, not white."
+    if has_effect better_blur_dx; then blur_class firefox; else extra "Better Blur DX"; fi
+    ((done)) || return 0
+    row ok "Firefox glass" "toolbar and tabs, $done profile$( ((done > 1)) && echo s)"
+    todo "Restart Firefox" "the tint matches Breeze Dark; for another theme change --glass-tint in userChrome.css"
+    if [[ ${1:-} == see-through ]]; then
+        row ok "See-through tab" "a new tab page with no background shows the glass"
+        todo "See-through has a cost" "pages with no background of their own are now drawn on dark, not white"
+    fi
     return 0
 }
 
@@ -344,19 +435,17 @@ for a in "$@"; do
         --no-start) START=0 ;;
         -h|--help) sed -n '2,/^set -euo/{/^set -euo/d;s/^# \{0,1\}//;p}' "$0"; exit 0 ;;
         all) PARTS+=("${DEFAULT[@]}" round-tasks see-through) ;;
-        *) if declare -F "do_$a" >/dev/null; then PARTS+=("$a"); else echo "unknown part: $a (try --help)" >&2; exit 2; fi ;;
+        *) if declare -F "do_$a" >/dev/null; then PARTS+=("$a"); else die "unknown part: $a (try --help)"; fi ;;
     esac
 done
 ((${#PARTS[@]})) || PARTS=("${DEFAULT[@]}")
 
+banner installer
 for c in kreadconfig6 kwriteconfig6; do
-    have "$c" || { echo "$c not found: this needs KDE Plasma 6." >&2; exit 1; }
+    have "$c" || die "$c not found: this needs KDE Plasma 6."
 done
 
-for p in "${PARTS[@]}"; do
-    say "· $p"
-    "do_$p"
-done
+for p in "${PARTS[@]}"; do "do_$p"; done
 
 if ((START)); then
     QDBUS=$(command -v qdbus6 || command -v qdbus-qt6 || command -v qdbus || true)
@@ -364,11 +453,38 @@ if ((START)); then
         ((KWIN_DIRTY || BLUR_DIRTY)) && "$QDBUS" org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || true
         ((BLUR_DIRTY)) && "$QDBUS" org.kde.KWin /Effects reconfigureEffect better_blur_dx >/dev/null 2>&1 || true
     fi
+    ((KWIN_DIRTY)) && todo "Log out and back in once" "so KWin loads the new scripts and effects"
+fi
+
+if ((${#EXTRAS[@]})); then
+    declare -A WHERE=([Klassy]="klassy-bin https://github.com/paulmcauley/klassy"
+        ["KDE Rounded Corners"]="kwin-effect-rounded-corners-git https://github.com/matinlotfali/KDE-Rounded-Corners"
+        ["Better Blur DX"]="kwin-effects-better-blur-dx https://github.com/xarblu/kwin-effects-better-blur-dx")
+    pkgs=() links=()
+    for e in "${EXTRAS[@]}"; do pkgs+=("${WHERE[$e]% *}"); links+=("${WHERE[$e]#* }"); done
+    if have pacman; then
+        todo "Install what was missing, then run this again" "paru -S ${pkgs[*]}"
+    else
+        todo "Install what was missing, then run this again" "${links[*]}"
+    fi
+fi
+
+if ((${#TODO[@]})); then
+    printf '\n  %sLeft for you%s\n' "$BOLD" "$RESET"
+    n=0
+    for t in "${TODO[@]}"; do
+        n=$((n + 1))
+        printf '  %s%2d%s %s\n' "$CORAL" "$n" "$RESET" "${t%%$'\t'*}"
+        [[ -n ${t#*$'\t'} ]] && printf '     %s%s%s\n' "$DIM" "${t#*$'\t'}" "$RESET"
+    done
 fi
 
 echo
-say "Done."
-[[ -d $BACKUPS ]] && echo "Edited config files were first copied to $BACKUPS"
-((${#NOTES[@]})) && printf ' - %s\n' "${NOTES[@]}"
-((KWIN_DIRTY && START)) && echo " - New KWin scripts and effects are fully loaded after you log out and back in."
+if ((SKIPPED)); then
+    printf '  %s%slavaglass is installed, minus the parts marked above.%s\n' "$BOLD" "$YELLOW" "$RESET"
+else
+    printf '  %s%slavaglass is installed.%s\n' "$BOLD" "$PINK" "$RESET"
+fi
+[[ -d $BACKUPS ]] && printf '  %sYour config files from before: %s%s\n' "$DIM" "$(tilde "$BACKUPS")" "$RESET"
+echo
 exit 0
