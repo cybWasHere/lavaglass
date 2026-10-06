@@ -168,7 +168,7 @@ def youtube_category(vid):
         with urllib.request.urlopen(req, timeout=8) as r:
             m = re.search(rb'"category":"([^"]*)"', r.read(4 << 20))
         return m.group(1).decode() if m else ""
-    except (OSError, ValueError):
+    except Exception:                   # http.client's own errors (IncompleteRead...) are neither OSError nor ValueError
         return ""
 
 
