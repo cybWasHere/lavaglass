@@ -111,7 +111,7 @@ backup() { # copy a config file aside, before this run's first edit of it
     [[ -f $1 ]] || return 0
     local to=$BACKUPS/${1#"$HOME"/}
     mkdir -p "$(dirname "$to")"
-    cp -a "$1" "$to"
+    cp -L --preserve=mode,timestamps "$1" "$to"   # the content, also when the config is a symlink (dotfiles)
 }
 
 put() { # put <source> <target>: copy, or symlink with --link; replaces what was there
