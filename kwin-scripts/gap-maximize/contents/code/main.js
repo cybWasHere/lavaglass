@@ -7,6 +7,7 @@
 const MAX_FULL = 3; // KWin::MaximizeFull
 const saved = new Map(); // window -> geometry before it was put in the tile
 const wasInTile = new Map(); // window -> tile membership just before a maximize request
+const pending = new Map(); // window -> geometry just before a maximize request
 let busy = false;
 
 function log(msg) { console.info("gap-maximize: " + msg); }
@@ -26,6 +27,10 @@ function onAboutToChange(w, mode) {
     if (busy) return;
     const t = fullTile(w.output);
     wasInTile.set(w, !!t && w.tile === t);
+    // maximizedChanged comes too late for this: a Wayland window already has the maximized geometry
+    const g = w.frameGeometry;
+    if (mode === MAX_FULL) pending.set(w, { x: g.x, y: g.y, width: g.width, height: g.height });
+    else pending.delete(w);
 }
 
 function onChanged(w) {
@@ -34,6 +39,8 @@ function onChanged(w) {
     if (!t) return;
     const restore = wasInTile.get(w);
     wasInTile.delete(w);
+    const before = pending.get(w);
+    pending.delete(w);
     busy = true;
     try {
         w.setMaximize(false, false);
@@ -44,8 +51,8 @@ function onChanged(w) {
             if (g) w.frameGeometry = g;
             log("restored " + w.resourceClass);
         } else {
-            // every time it goes in: an entry left from a window dragged out of the tile is stale
-            const g = w.frameGeometry;
+            // always the latest: the window may have left the tile by other means and been resized
+            const g = before || w.frameGeometry;
             // a window that opened maximized has no useful size; fall back to 70% centred
             const a = t.absoluteGeometry;
             saved.set(w, (g.width >= a.width - 1 && g.height >= a.height - 1)
@@ -67,5 +74,5 @@ function watch(w) {
 }
 
 workspace.windowAdded.connect(watch);
-workspace.windowRemoved.connect(w => { saved.delete(w); wasInTile.delete(w); });
+workspace.windowRemoved.connect(w => { saved.delete(w); wasInTile.delete(w); pending.delete(w); });
 workspace.stackingOrder.forEach(watch);

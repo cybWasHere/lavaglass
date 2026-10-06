@@ -38,7 +38,7 @@ frame, both say "null", so it has to be served from an address to be let in.
 Clients: the Plasma wallpaper (../wallpaper) and the startpage's lamp.
 Run by the user unit lamp-audio.service; `lamp-audio.py --watch` prints what a lamp would get.
 """
-import asyncio, base64, hashlib, json, os, re, struct, sys, threading, time, urllib.request
+import asyncio, base64, hashlib, http.client, json, os, re, struct, sys, threading, time, urllib.request
 from urllib.parse import parse_qs, unquote, urlparse
 import numpy as np
 from gi.repository import Gio, GLib
@@ -172,7 +172,7 @@ def youtube_category(vid):
         with urllib.request.urlopen(req, timeout=8) as r:
             m = re.search(rb'"category":"([^"]*)"', r.read(4 << 20))
         return m.group(1).decode() if m else ""
-    except Exception:                   # http.client's own errors (IncompleteRead...) are neither OSError nor ValueError
+    except (OSError, ValueError, http.client.HTTPException):   # a body cut short is not an OSError
         return ""
 
 
@@ -189,6 +189,7 @@ class Players:
         self.kinds = {}                 # YouTube video id -> its category (None while being asked)
         self.changed = asyncio.Event()  # a player said something: read again now
         self.rewire = False             # the set of players changed: wire() now
+        self.lock = threading.Lock()    # seen and rewire: read() writes them from its thread, listen() reads them
         self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
         poke = self.poke = lambda *a: loop.call_soon_threadsafe(self.changed.set)
         self.bus.signal_subscribe(None, DBUS + ".Properties", "PropertiesChanged", "/org/mpris/MediaPlayer2",
@@ -248,7 +249,6 @@ class Players:
         now = time.monotonic()
         self.since = {pid: self.since.get(pid, now) for pid in found}
         for pid, t in found.items():
-            self.seen[pid] = (t["app"], now)
             for k in ("title", "author", "url", "art"):
                 t.setdefault(k, "")
             t["since"] = self.since[pid]
@@ -259,8 +259,11 @@ class Players:
             del self.covers[k]
         rank = lambda t: (PREFER.index(t["app"]) if t["app"] in PREFER else len(PREFER), -t["since"])
         playing = sorted(found.values(), key=rank)
-        if {t["pid"] for t in playing} != {t["pid"] for t in self.playing}:
-            self.rewire = True
+        with self.lock:
+            for pid, t in found.items():
+                self.seen[pid] = (t["app"], now)
+            if {t["pid"] for t in playing} != {t["pid"] for t in self.playing}:
+                self.rewire = True
         self.playing = playing
         self.video = video
 
@@ -270,8 +273,7 @@ class Players:
         for pid in [p for p, (_, at) in list(self.seen.items()) if now - at > LINGER]:
             del self.seen[pid]
             self.rewire = True
-        seen = dict(self.seen)          # read() adds to it in a worker thread: iterate a copy
-        return set(seen), {app for app, _ in seen.values() if app}
+        return set(self.seen), {app for app, _ in self.seen.values() if app}
 
     async def follow(self):
         while True:
@@ -386,12 +388,13 @@ async def listen(emit, wanted, players, rec):
         last = v
         # streams come and go (and may be replaced): look at once when the players change, often
         # while it's silent, now and then otherwise. Nobody playing and nothing wired: nothing to do.
-        pids, apps = players.wired()
-        if rec.alive and (players.rewire or time.monotonic() >= next_wire):
-            next_wire = time.monotonic() + (2 if v == zeros else 10)
-            if pids or players.rewire:
-                asyncio.ensure_future(wire(pids, apps))
-            players.rewire = False
+        with players.lock:                      # not while read() is adding a player
+            pids, apps = players.wired()
+            if rec.alive and (players.rewire or time.monotonic() >= next_wire):
+                next_wire = time.monotonic() + (2 if v == zeros else 10)
+                if pids or players.rewire:
+                    asyncio.ensure_future(wire(pids, apps))
+                players.rewire = False
 
 
 # --- HTTP: what is playing, for the colours ----------------------------------------------------
