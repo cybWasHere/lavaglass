@@ -30,7 +30,10 @@ LAMP_AUDIO_IGNORE: words (space separated) that, found in a player's page addres
 keep it from being followed, e.g. "twitch.tv franceinfo". LAMP_AUDIO_MUSIC: words that, found in
 the address, title or channel of a YouTube video, make it count as music whatever its category
 (for mixes filed under "Entertainment"). LAMP_AUDIO_PREFER: the apps that win when several play
-at once.
+at once. LAMP_AUDIO_ORIGINS: web pages (space separated origins) that may read all this, e.g.
+"http://127.0.0.1:9875" for a start page served there. Without it only programs get in (the
+wallpaper, curl): a page opened from a file can't be told apart from any website's sandboxed
+frame, both say "null", so it has to be served from an address to be let in.
 
 Clients: the Plasma wallpaper (../wallpaper) and the startpage's lamp.
 Run by the user unit lamp-audio.service; `lamp-audio.py --watch` prints what a lamp would get.
@@ -44,6 +47,7 @@ HOST, PORT = "127.0.0.1", int(os.environ.get("LAMP_AUDIO_PORT", 9873))
 PREFER = os.environ.get("LAMP_AUDIO_PREFER", "youtube-music").split()   # process names, best first
 IGNORE = os.environ.get("LAMP_AUDIO_IGNORE", "").lower().split()
 MUSIC = os.environ.get("LAMP_AUDIO_MUSIC", "").lower().split()
+ORIGINS = {o.rstrip("/") for o in os.environ.get("LAMP_AUDIO_ORIGINS", "").replace(",", " ").split()}
 RATE, HOP, WIN = 48000, 800, 2048                         # 60 lines a second, 43 ms analysis window
 DT = HOP / RATE
 BANDS = ((35, 150), (300, 2500), (5000, 14000))           # Hz: bass, mid, high
@@ -444,15 +448,19 @@ async def client(reader, writer, players, rec):
         head = (await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 5)).decode("latin1")
         request = head.split("\r\n", 1)[0].split(" ")
         h = {k.strip().lower(): v.strip() for k, v in (l.split(":", 1) for l in head.split("\r\n")[1:] if ":" in l)}
-        # a file:// page says "null", Qt says nothing; a website has no business listening in
-        # (nor one that renamed itself to 127.0.0.1 after loading: the Host must be ours)
-        if h.get("origin", "null").startswith("http") or h.get("host", "").rsplit(":", 1)[0] not in ("127.0.0.1", "localhost"):
+        # Qt and curl send no Origin; a web page always does on the calls that would let it read
+        # the answer, and it gets in only if it is listed. "null" is never trusted: a file:// page
+        # says it, but so does a sandboxed frame on any website. And the Host must be ours, or a
+        # site that renamed itself to 127.0.0.1 after loading would count as the same origin.
+        origin = h.get("origin")
+        if (origin is not None and origin not in ORIGINS) or h.get("host", "").rsplit(":", 1)[0] not in ("127.0.0.1", "localhost"):
             writer.write(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n")
             return
         if "sec-websocket-key" not in h:
             status, kind, body = page(request[1], players, rec) if len(request) > 1 and request[0] == "GET" else ("400 Bad Request", "text/plain", b"")
+            cors = f"Access-Control-Allow-Origin: {origin}\r\nVary: Origin\r\n" if origin else ""
             writer.write((f"HTTP/1.1 {status}\r\nContent-Type: {kind}\r\nContent-Length: {len(body)}\r\n"
-                          "Cache-Control: no-store\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n").encode() + body)
+                          f"Cache-Control: no-store\r\n{cors}Connection: close\r\n\r\n").encode() + body)
             await writer.drain()
             return
         accept = base64.b64encode(hashlib.sha1((h["sec-websocket-key"] + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode()).digest())

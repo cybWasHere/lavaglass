@@ -113,6 +113,7 @@ something loud.
 [Service]
 Environment=LAMP_AUDIO_IGNORE="twitch.tv"     # never follow these (page address or title)
 Environment=LAMP_AUDIO_MUSIC="lofi mix"       # YouTube videos to count as music anyway
+Environment=LAMP_AUDIO_ORIGINS="http://127.0.0.1:9875"   # a web page that may listen (see below)
 ```
 
 `~/.local/share/lavaglass/lamp-audio/lamp-audio.py --watch` prints what a lamp would get.
@@ -129,6 +130,10 @@ the marked block of your profile's `chrome/userChrome.css`.
 **See-through new tab.** With `see-through`, a new tab page that paints no background shows the
 blurred desktop. It pairs with the See-through mode of
 [startpage](https://github.com/cybWasHere/startpage), which has the same lava lamp.
+For that lamp to follow the music too, the page has to be served from an address
+(`python3 install.py --serve` in its folder) and that address named in `LAMP_AUDIO_ORIGINS`:
+lamp-audio answers programs and listed pages only, never a page opened from a file, which no
+website's hidden frame can be told apart from.
 
 ## Good to know
 
@@ -138,7 +143,8 @@ blurred desktop. It pairs with the See-through mode of
   Picture-in-Picture window, or of the browser window showing the video, and only on a portrait
   screen. Nothing is recorded or sent anywhere.
 - **lamp-audio talks to one outside server**: youtube.com, once per video, to read its category.
-  Everything else stays on loopback (`127.0.0.1:9873`).
+  Everything else stays on loopback (`127.0.0.1:9873`), and no website can read it from there:
+  web pages are refused unless you list them in `LAMP_AUDIO_ORIGINS`.
 - **Blur is all or nothing.** The `glass` part switches KWin's stock blur for Better Blur DX,
   because the stock one can't blur apps that don't ask for it.
 - **See-through has a cost.** With that Firefox pref on, pages with no background of their own
