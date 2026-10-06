@@ -87,8 +87,23 @@ row "Glass windows" "opacity rules out$blur"
 rm -f "$DATA/konsole/Ferra-Glass.colorscheme" "$DATA/konsole/Lavaglass.profile"
 [[ $(kread konsolerc 'Desktop Entry' DefaultProfile) == Lavaglass.profile ]] && kdel konsolerc 'Desktop Entry' DefaultProfile
 rm -f "$CONF/halloy/themes/ferra-glass.toml"
+hc=$CONF/halloy/config.toml   # and the line that names it, or Halloy is left asking for a theme that is gone
+[[ -f $hc ]] && sed -i '/^theme[[:space:]]*=[[:space:]]*"ferra-glass"[[:space:]]*$/d' "$(readlink -f "$hc")"
 rm -f "$HOME/.var/app/com.chatterino.chatterino/data/chatterino/Themes/Ferra.json" "$DATA/chatterino/Themes/Ferra.json"
 row "Ferra themes" "Konsole, Halloy and Chatterino files removed"
+
+# round-tasks: the copy of the Plasma style the installer made (it leaves a .lavaglass file in it)
+tasks_left=0
+for tasks in "$DATA"/plasma/desktoptheme/*/widgets/tasks.svgz; do
+    [[ -e $tasks ]] || continue
+    style=$(dirname "$(dirname "$tasks")")
+    if [[ -e $style/.lavaglass ]]; then
+        rm -rf "$style"
+        row "Round tasks" "copy of the Plasma style '$(basename "$style")' removed; restart Plasma to see it"
+    else
+        tasks_left=1
+    fi
+done
 
 # Firefox: take our marked blocks out of userChrome.css
 for css in "$HOME"/.mozilla/firefox/*/chrome/userChrome.css "$CONF"/mozilla/firefox/*/chrome/userChrome.css \
@@ -110,6 +125,7 @@ printf '  %s- %s%s\n' "$DIM" "your window decoration, corner radius and the Klas
 printf '  %s- %s%s\n' "$DIM" "Glass Dock's settings in $(tilde "$CONF/lavaglass")" "$RESET"
 printf '  %s- %s%s\n' "$DIM" "Firefox's user.js prefs" "$RESET"
 ((blur_left)) && printf '  %s- %s%s\n' "$DIM" "Better Blur DX, still on: nothing says this installer switched it on" "$RESET"
+((tasks_left)) && printf '  %s- %s%s\n' "$DIM" "round task highlights, if you put them in: delete your style's folder in $(tilde "$DATA/plasma/desktoptheme")" "$RESET"
 printf '\n  %s%slavaglass is removed.%s\n' "$BOLD" "$PINK" "$RESET"
 [[ -d $PREFIX/backups ]] && printf '  %sYour config files from before each install: %s%s\n' "$DIM" "$(tilde "$PREFIX/backups")" "$RESET"
 echo

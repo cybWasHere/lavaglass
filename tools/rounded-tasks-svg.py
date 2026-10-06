@@ -58,6 +58,7 @@ local = os.path.expanduser(f"~/.local/share/plasma/desktoptheme/{THEME}")
 if not os.path.exists(os.path.join(local, "metadata.json")):
     os.makedirs(local, exist_ok=True)
     subprocess.run(["cp", "-rn", f"/usr/share/plasma/desktoptheme/{THEME}/.", local + "/"], check=True)
+    open(os.path.join(local, ".lavaglass"), "w").close()   # this folder is our copy: uninstall.sh may remove it
 dest = os.path.join(local, "widgets")
 os.makedirs(dest, exist_ok=True)
 with gzip.open(os.path.join(dest, "tasks.svgz"), "wb") as f:
