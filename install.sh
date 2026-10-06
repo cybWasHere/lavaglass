@@ -134,7 +134,9 @@ blur_class() { # add window classes to Better Blur DX's list, keeping what is th
     local list c
     list=$(kread kwinrc Effect-better-blur-dx WindowClasses)
     for c in "$@"; do
-        grep -qxF "$c" <<<"$list" || list+=${list:+$'\n'}$c
+        grep -qxF "$c" <<<"$list" && continue
+        list+=${list:+$'\n'}$c
+        mkdir -p "$PREFIX"; echo "$c" >>"$PREFIX/blur-classes-added"   # for uninstall.sh: only these go out again
     done
     kwrite kwinrc Effect-better-blur-dx WindowClasses "$list"
     BLUR_DIRTY=1
@@ -288,6 +290,8 @@ do_glass() {
     local lacks=()
     backup "$CONF/kwinrc"; backup "$CONF/kwinrulesrc"; backup "$CONF/konsolerc"
     if has_effect better_blur_dx; then
+        # noted only when this run switches it on: uninstall.sh leaves a blur that was yours alone
+        [[ $(kread kwinrc Plugins better_blur_dxEnabled) == true ]] || { mkdir -p "$PREFIX"; touch "$PREFIX/blur-switched-on"; }
         kwrite kwinrc Plugins blurEnabled false
         kwrite kwinrc Plugins better_blur_dxEnabled true
         kwrite kwinrc Effect-better-blur-dx BlurMatching true

@@ -52,11 +52,26 @@ for d in "$HERE"/kwin-scripts/*/; do
 done
 row "KWin scripts" "Gap Maximize and Panel Edge Reveal removed"
 
-# glass: stock blur back, our classes and rules out
-if [[ $(kread kwinrc Plugins better_blur_dxEnabled) == true ]]; then
+# glass: stock blur back if the installer was what switched Better Blur DX on, the classes it
+# added and its rules out
+blur="" blur_left=0
+if [[ -e $PREFIX/blur-switched-on ]]; then
     kdel kwinrc Plugins blurEnabled
     kdel kwinrc Plugins better_blur_dxEnabled
+    rm -f "$PREFIX/blur-switched-on"
+    blur=", KWin's own blur back"
+elif [[ $(kread kwinrc Plugins better_blur_dxEnabled) == true ]]; then
+    blur_left=1
 fi
+if [[ -s $PREFIX/blur-classes-added ]]; then
+    list=$(kread kwinrc Effect-better-blur-dx WindowClasses | grep -vxFf "$PREFIX/blur-classes-added" || true)
+    if [[ -n $list ]]; then
+        kwriteconfig6 --file kwinrc --group Effect-better-blur-dx --key WindowClasses "$list"
+    else
+        kdel kwinrc Effect-better-blur-dx WindowClasses
+    fi
+fi
+rm -f "$PREFIX/blur-classes-added"
 rules=$(kread kwinrulesrc General rules)
 for id in lavaglass-chatterino lavaglass-obs; do
     [[ ,$rules, == *,$id,* ]] || continue
@@ -67,7 +82,7 @@ for id in lavaglass-chatterino lavaglass-obs; do
     kwriteconfig6 --file kwinrulesrc --group General --key rules "$rules"
     kwriteconfig6 --file kwinrulesrc --group General --key count "$(awk -F, '{ print NF }' <<<"$rules")"
 done
-row "Glass windows" "opacity rules out, KWin's own blur back"
+row "Glass windows" "opacity rules out$blur"
 
 rm -f "$DATA/konsole/Ferra-Glass.colorscheme" "$DATA/konsole/Lavaglass.profile"
 [[ $(kread konsolerc 'Desktop Entry' DefaultProfile) == Lavaglass.profile ]] && kdel konsolerc 'Desktop Entry' DefaultProfile
@@ -94,6 +109,7 @@ printf '\n  %sLeft as they are%s\n' "$BOLD" "$RESET"
 printf '  %s- %s%s\n' "$DIM" "your window decoration, corner radius and the Klassy Lavaglass preset" "$RESET"
 printf '  %s- %s%s\n' "$DIM" "Glass Dock's settings in $(tilde "$CONF/lavaglass")" "$RESET"
 printf '  %s- %s%s\n' "$DIM" "Firefox's user.js prefs" "$RESET"
+((blur_left)) && printf '  %s- %s%s\n' "$DIM" "Better Blur DX, still on: nothing says this installer switched it on" "$RESET"
 printf '\n  %s%slavaglass is removed.%s\n' "$BOLD" "$PINK" "$RESET"
 [[ -d $PREFIX/backups ]] && printf '  %sYour config files from before each install: %s%s\n' "$DIM" "$(tilde "$PREFIX/backups")" "$RESET"
 echo
