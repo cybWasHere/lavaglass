@@ -334,6 +334,7 @@ class Recorder:
             "--latency", "20ms", "-P",
             f'{{ node.name = "{NODE}" node.description = "Lava lamp (listens to the music playing)" media.class = "Stream/Input/Audio/Internal" }}',
             "-", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+        self.heard = time.monotonic()           # HUSH counts from here, not from before it was stopped
 
     async def stop(self):
         if self.proc and self.proc.returncode is None:
