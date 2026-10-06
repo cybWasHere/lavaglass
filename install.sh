@@ -123,7 +123,21 @@ put() { # put <source> <target>: copy, or symlink with --link; replaces what was
 }
 
 unit() { # install a user unit and (re)start it
-    put "$1" "$CONF/systemd/user/$(basename "$1")"
+    local dst text py
+    dst=$CONF/systemd/user/$(basename "$1")
+    # the unit as shipped names the usual places; where yours differ (XDG_DATA_HOME, a python3
+    # that isn't /usr/bin's: the one the checks above ran), it is written out with the real ones
+    text=$(<"$1")
+    [[ $PREFIX == "$HOME/.local/share/lavaglass" ]] || text=${text//'%h/.local/share/lavaglass'/"${PREFIX//'%'/%%}"}
+    py=$(python3 -c 'import sys; print(sys.executable)' 2>/dev/null) || py=""
+    [[ -z $py ]] || text=${text//'/usr/bin/python3'/"${py//'%'/%%}"}
+    if [[ $text == "$(<"$1")" ]]; then
+        put "$1" "$dst"
+    else
+        mkdir -p "$(dirname "$dst")"
+        rm -f "$dst"                                   # never write through a --link symlink
+        printf '%s\n' "$text" >"$dst"
+    fi
     ((START)) || return 0
     systemctl --user daemon-reload
     systemctl --user enable "$(basename "$1")" >/dev/null 2>&1
