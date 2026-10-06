@@ -266,7 +266,8 @@ class Players:
         for pid in [p for p, (_, at) in list(self.seen.items()) if now - at > LINGER]:
             del self.seen[pid]
             self.rewire = True
-        return set(self.seen), {app for app, _ in self.seen.values() if app}
+        seen = dict(self.seen)          # read() adds to it in a worker thread: iterate a copy
+        return set(seen), {app for app, _ in seen.values() if app}
 
     async def follow(self):
         while True:
