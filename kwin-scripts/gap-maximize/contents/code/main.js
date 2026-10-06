@@ -44,14 +44,13 @@ function onChanged(w) {
             if (g) w.frameGeometry = g;
             log("restored " + w.resourceClass);
         } else {
-            if (!saved.has(w)) {
-                const g = w.frameGeometry;
-                // a window that opened maximized has no useful size; fall back to 70% centred
-                const a = t.absoluteGeometry;
-                saved.set(w, (g.width >= a.width - 1 && g.height >= a.height - 1)
-                    ? { x: a.x + a.width * 0.15, y: a.y + a.height * 0.15, width: a.width * 0.7, height: a.height * 0.7 }
-                    : { x: g.x, y: g.y, width: g.width, height: g.height });
-            }
+            // every time it goes in: an entry left from a window dragged out of the tile is stale
+            const g = w.frameGeometry;
+            // a window that opened maximized has no useful size; fall back to 70% centred
+            const a = t.absoluteGeometry;
+            saved.set(w, (g.width >= a.width - 1 && g.height >= a.height - 1)
+                ? { x: a.x + a.width * 0.15, y: a.y + a.height * 0.15, width: a.width * 0.7, height: a.height * 0.7 }
+                : { x: g.x, y: g.y, width: g.width, height: g.height });
             w.tile = t;
             log("tiled " + w.resourceClass);
         }
