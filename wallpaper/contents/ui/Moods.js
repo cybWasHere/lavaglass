@@ -102,12 +102,13 @@ function coverHues(d) {
         bins[k] += c; sat[k] += c * c / (1 - Math.abs(mx + mn - 1) + 1e-3); // weighted by chroma: big vivid areas win
     }
     if (total / (d.length / 4) < 0.05) return null;
+    if (Math.max.apply(null, bins) <= 0) return null; // tinted all over, but no pixel strong enough to count
     function at(k) { return bins[(k + N) % N]; }
     var left = [], hues = [], top = 0;
     for (k = 0; k < N; k++) left.push(at(k - 1) + 2 * at(k) + at(k + 1));
     for (n = 0; n < 3; n++) { // peaks at least 45 degrees apart, and not a stray speck of colour
         k = left.indexOf(Math.max.apply(null, left));
-        if (n && left[k] < 0.15 * top) break;
+        if (n && (left[k] <= 0 || left[k] < 0.15 * top)) break;
         if (!n) top = left[k];
         var near = at(k - 1) + at(k) + at(k + 1);
         hues.push([(k + 0.5 + (at(k + 1) - at(k - 1)) / near) / N, Math.min(0.65, Math.max(0.4, sat[k] / bins[k]))]);
