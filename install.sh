@@ -140,12 +140,12 @@ blur_class() { # add window classes to Better Blur DX's list, keeping what is th
     BLUR_DIRTY=1
 }
 
-opacity_rule() { # opacity_rule <id> <window class contains> <description>
-    local id=$1 rules count
+opacity_rule() { # opacity_rule <id> <window class> <description> [<match: 2 contains (default), 3 regex>]
+    local id=$1 match=${4:-2} rules count
     # a rule of your own that already sets this app's opacity wins: leave it be
-    if awk -v id="[$1]" -v pat="$2" '
+    if awk -v id="[$1]" -v pat="$2" -v re="$((match == 3))" '
             /^\[/ { if (hit && op) found = 1; grp = $0; hit = op = 0; next }
-            grp != id && /^wmclass=/ && index(tolower($0), pat) { hit = 1 }
+            grp != id && /^wmclass=/ && (re ? tolower(substr($0, 9)) ~ tolower(pat) : index(tolower($0), pat)) { hit = 1 }
             /^opacityactiverule=/ { op = 1 }
             END { exit !(found || (hit && op)) }' "$CONF/kwinrulesrc" 2>/dev/null; then
         return 0
@@ -158,7 +158,7 @@ opacity_rule() { # opacity_rule <id> <window class contains> <description>
     fi
     kwrite kwinrulesrc "$id" Description "$3"
     kwrite kwinrulesrc "$id" wmclass "$2"
-    kwrite kwinrulesrc "$id" wmclassmatch 2
+    kwrite kwinrulesrc "$id" wmclassmatch "$match"
     kwrite kwinrulesrc "$id" types 1
     kwrite kwinrulesrc "$id" opacityactive 80
     kwrite kwinrulesrc "$id" opacityactiverule 2
@@ -291,7 +291,7 @@ do_glass() {
         kwrite kwinrc Plugins blurEnabled false
         kwrite kwinrc Plugins better_blur_dxEnabled true
         kwrite kwinrc Effect-better-blur-dx BlurMatching true
-        blur_class org.squidowl.halloy com.chatterino.chatterino chatterino obs
+        blur_class org.squidowl.halloy com.chatterino.chatterino chatterino obs com.obsproject.Studio
     else
         lacks+=("see-through but not blurred (no Better Blur DX)"); extra "Better Blur DX"
     fi
@@ -307,7 +307,8 @@ do_glass() {
         lacks+=("title bars stay opaque (no Klassy)"); extra Klassy
     fi
     opacity_rule lavaglass-chatterino chatterino "lavaglass: Chatterino at 80% (glass)"
-    opacity_rule lavaglass-obs obs "lavaglass: OBS at 80% (glass)"
+    # OBS by its whole class, under either name: "contains obs" also caught Obsidian
+    opacity_rule lavaglass-obs '^(obs|com[.]obsproject[.][Ss]tudio)$' "lavaglass: OBS at 80% (glass)" 3
     if ((${#lacks[@]})); then
         local d; printf -v d '%s; ' "${lacks[@]}"; row todo "Glass windows" "${d%; }"
     else
